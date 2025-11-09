@@ -290,7 +290,8 @@ export async function GET(request: NextRequest) {
             startTime: jsAny.startTime,
             endTime: jsAny.endTime,
             notes: jsAny.notes,
-        }))
+          }
+        })
       
       // For staff: Find step in their department
       // For admin: Find current step (waiting/in_progress) or latest
