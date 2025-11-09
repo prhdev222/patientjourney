@@ -459,6 +459,80 @@ export default function AdminDashboardPage() {
     }
   }
 
+  const handleEditStaff = (staff: Staff) => {
+    setEditingStaff(staff)
+    setShowEditStaffModal(true)
+  }
+
+  const handleUpdateStaff = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!editingStaff) return
+
+    const formData = new FormData(e.currentTarget)
+    const data: any = {
+      username: formData.get('username') as string,
+      fullName: formData.get('fullName') as string || undefined,
+      department: formData.get('department') as string,
+      isActive: formData.get('isActive') === 'true',
+    }
+
+    // Only include password if provided
+    const password = formData.get('password') as string
+    if (password && password.trim()) {
+      data.password = password
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/admin/staff/${editingStaff.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      })
+
+      if (response.ok) {
+        setShowEditStaffModal(false)
+        setEditingStaff(null)
+        fetchStaff()
+        alert('แก้ไข staff สำเร็จ')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'เกิดข้อผิดพลาด')
+      }
+    } catch (err) {
+      console.error('Failed to update staff:', err)
+      alert('เกิดข้อผิดพลาด')
+    }
+  }
+
+  const handleDeleteStaff = async (id: string) => {
+    if (!confirm('คุณแน่ใจว่าต้องการลบ staff นี้?')) return
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/admin/staff/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        fetchStaff()
+        alert('ลบ staff สำเร็จ')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'เกิดข้อผิดพลาด')
+      }
+    } catch (err) {
+      console.error('Failed to delete staff:', err)
+      alert('เกิดข้อผิดพลาด')
+    }
+  }
+
   const handleAddPatient = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
@@ -1128,6 +1202,101 @@ export default function AdminDashboardPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddStaffModal(false)}
+                  className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600"
+                >
+                  บันทึก
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Staff Modal */}
+      {showEditStaffModal && editingStaff && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">✏️ แก้ไข Staff</h3>
+            <form onSubmit={handleUpdateStaff}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Username *
+                  </label>
+                  <input
+                    type="text"
+                    name="username"
+                    defaultValue={editingStaff.username}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Password (เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน)
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ชื่อ-นามสกุล
+                  </label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    defaultValue={editingStaff.fullName || ''}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    จุด check-in *
+                  </label>
+                  <select
+                    name="department"
+                    defaultValue={editingStaff.department}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="">-- เลือกจุด check-in --</option>
+                    {steps.map((step) => (
+                      <option key={step.id} value={step.name}>
+                        {step.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    สถานะ
+                  </label>
+                  <select
+                    name="isActive"
+                    defaultValue={editingStaff.isActive ? 'true' : 'false'}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="true">✅ ใช้งาน</option>
+                    <option value="false">❌ ปิดการใช้งาน</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditStaffModal(false)
+                    setEditingStaff(null)
+                  }}
                   className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300"
                 >
                   ยกเลิก
