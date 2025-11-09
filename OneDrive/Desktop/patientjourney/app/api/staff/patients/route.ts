@@ -279,15 +279,17 @@ export async function GET(request: NextRequest) {
           const bTime = (b as any).startTime ? new Date((b as any).startTime).getTime() : 0
           return aTime - bTime
         })
-        .map(js => ({
-          id: js.id,
-          name: js.step.name,
-          status: js.status,
-          department: js.step.department,
-          queueNumber: js.queueNumber,
-          startTime: js.startTime,
-          endTime: js.endTime,
-          notes: js.notes,
+        .map(js => {
+          const jsAny = js as any
+          return {
+            id: js.id,
+            name: js.step.name,
+            status: js.status,
+            department: js.step.department,
+            queueNumber: jsAny.queueNumber,
+            startTime: jsAny.startTime,
+            endTime: jsAny.endTime,
+            notes: jsAny.notes,
         }))
       
       // For staff: Find step in their department
