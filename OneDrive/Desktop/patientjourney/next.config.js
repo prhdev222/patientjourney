@@ -18,6 +18,11 @@ const nextConfig = {
         tls: false,
       }
     }
+    // Fix for path aliases
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname, '.'),
+    }
     return config
   },
   // PWA Configuration
