@@ -333,10 +333,10 @@ export async function GET(request: NextRequest) {
               name: currentStep.step.name,
               status: currentStep.status,
               department: currentStep.step.department,
-              queueNumber: currentStep.queueNumber,
-              startTime: currentStep.startTime,
-              endTime: currentStep.endTime,
-              notes: currentStep.notes,
+              queueNumber: (currentStep as any).queueNumber,
+              startTime: (currentStep as any).startTime,
+              endTime: (currentStep as any).endTime,
+              notes: (currentStep as any).notes,
             }
           : null,
         allSteps, // Include all steps for history
