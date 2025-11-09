@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
     const completedSteps = visit.journeySteps.filter(
       (js) => js.status === 'completed'
     )
-    const nextStepId = currentStep?.step.nextSteps?.[0] as string | undefined
+    const nextSteps = currentStep?.step.nextSteps as string[] | undefined
+    const nextStepId = nextSteps?.[0] as string | undefined
     const nextStep = nextStepId
       ? await prisma.serviceStep.findUnique({
           where: { id: nextStepId },
