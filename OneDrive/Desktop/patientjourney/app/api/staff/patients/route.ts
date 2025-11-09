@@ -274,7 +274,11 @@ export async function GET(request: NextRequest) {
     const patients = visits.map((visit) => {
       // Get all journey steps for this visit (for history) - order by startTime ascending for proper timeline
       const allSteps = visit.journeySteps
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+        .sort((a, b) => {
+          const aTime = (a as any).startTime ? new Date((a as any).startTime).getTime() : 0
+          const bTime = (b as any).startTime ? new Date((b as any).startTime).getTime() : 0
+          return aTime - bTime
+        })
         .map(js => ({
           id: js.id,
           name: js.step.name,
