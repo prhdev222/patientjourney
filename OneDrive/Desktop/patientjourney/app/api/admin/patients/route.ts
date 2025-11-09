@@ -50,14 +50,14 @@ export async function POST(request: NextRequest) {
 
     // Generate QR code
     const qrCodeData = JSON.stringify({ vn, hn })
-    const qrCodeImage: string = await QRCode.toDataURL(qrCodeData, {
+    const qrCodeImage = (await QRCode.toDataURL(qrCodeData, {
       errorCorrectionLevel: 'M',
       margin: 1,
       color: {
         dark: '#000000',
         light: '#FFFFFF',
       },
-    } as any) as string
+    } as any) as unknown) as string
 
     // Create patient visit
     const visit = await prisma.patientVisit.create({
