@@ -57,6 +57,7 @@ export default function AdminDashboardPage() {
   const [showAddPatientModal, setShowAddPatientModal] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
   const [showManageJourneyModal, setShowManageJourneyModal] = useState(false)
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false)
   const [qrCodeData, setQrCodeData] = useState<string>('')
   const [editingStep, setEditingStep] = useState<ServiceStep | null>(null)
   const [selectedPatientVn, setSelectedPatientVn] = useState<string>('')
@@ -663,6 +664,63 @@ export default function AdminDashboardPage() {
     }
   }
 
+  const handleChangePassword = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+    const currentPassword = formData.get('currentPassword') as string
+    const newPassword = formData.get('newPassword') as string
+    const confirmPassword = formData.get('confirmPassword') as string
+
+    if (newPassword !== confirmPassword) {
+      alert('รหัสผ่านใหม่ไม่ตรงกัน')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      alert('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร')
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setShowChangePasswordModal(false)
+        alert('เปลี่ยนรหัสผ่านสำเร็จ')
+        // Clear form
+        const form = e.target as HTMLFormElement
+        form.reset()
+      } else {
+        if (response.status === 401 || response.status === 403) {
+          alert('เซสชันหมดอายุ กรุณา login ใหม่')
+          localStorage.removeItem('token')
+          localStorage.removeItem('refreshToken')
+          localStorage.removeItem('user')
+          router.push('/hospital')
+        } else {
+          alert(data.error || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน')
+        }
+      }
+    } catch (err) {
+      console.error('Failed to change password:', err)
+      alert('เกิดข้อผิดพลาด')
+    }
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
@@ -689,6 +747,12 @@ export default function AdminDashboardPage() {
           <h1 className="text-xl font-bold text-gray-800">🏥 Admin Dashboard</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">👤 {user?.fullName || user?.username}</span>
+            <button
+              onClick={() => setShowChangePasswordModal(true)}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              🔐 เปลี่ยนรหัสผ่าน
+            </button>
             <button
               onClick={handleLogout}
               className="text-sm text-gray-600 hover:text-gray-800"
@@ -1306,6 +1370,76 @@ export default function AdminDashboardPage() {
                   className="flex-1 bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600"
                 >
                   บันทึก
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">🔐 เปลี่ยนรหัสผ่าน</h3>
+            <form onSubmit={handleChangePassword}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    รหัสผ่านปัจจุบัน *
+                  </label>
+                  <input
+                    type="password"
+                    name="currentPassword"
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    placeholder="กรอกรหัสผ่านปัจจุบัน"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    รหัสผ่านใหม่ *
+                  </label>
+                  <input
+                    type="password"
+                    name="newPassword"
+                    required
+                    minLength={6}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ยืนยันรหัสผ่านใหม่ *
+                  </label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    required
+                    minLength={6}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    placeholder="ยืนยันรหัสผ่านใหม่"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChangePasswordModal(false)
+                    const form = document.querySelector('form[onsubmit]') as HTMLFormElement
+                    if (form) form.reset()
+                  }}
+                  className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600"
+                >
+                  เปลี่ยนรหัสผ่าน
                 </button>
               </div>
             </form>
