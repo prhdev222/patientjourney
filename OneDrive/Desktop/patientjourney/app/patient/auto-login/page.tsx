@@ -49,8 +49,15 @@ function AutoLoginContent() {
         console.log('[Auto Login] Visit ID:', data.visitId)
         console.log('[Auto Login] VN:', trimmedVn)
 
-        // Use window.location.href for full page reload to ensure state is fresh
-        window.location.href = '/patient/dashboard'
+        // Use absolute URL to prevent Vercel redirect issues
+        // Get current origin to ensure we stay on the same domain
+        const currentOrigin = window.location.origin
+        const dashboardUrl = `${currentOrigin}/patient/dashboard`
+        
+        console.log('[Auto Login] Redirecting to:', dashboardUrl)
+        
+        // Use window.location.href with absolute URL for full page reload
+        window.location.href = dashboardUrl
       } catch (err: any) {
         console.error('[Auto Login] Error:', err)
         setError(err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ')
