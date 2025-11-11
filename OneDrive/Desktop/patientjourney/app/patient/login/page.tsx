@@ -155,37 +155,54 @@ export default function PatientLoginPage() {
       setScanMode('camera')
       setScanning(true)
       
+      // Clear any existing scanner
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop()
+          await scannerRef.current.clear()
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        scannerRef.current = null
+      }
+
       const html5QrCode = new Html5Qrcode('qr-reader')
       scannerRef.current = html5QrCode
 
-      // Request camera permission first
+      // Try to start camera - html5Qrcode will handle permission request
       try {
-        await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      } catch (permErr: any) {
-        if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+        await html5QrCode.start(
+          { facingMode: 'environment' }, // Use back camera
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+          },
+          (decodedText) => {
+            console.log('[QR Scanner] QR Code detected:', decodedText)
+            handleQRCodeScanned(decodedText)
+          },
+          (errorMessage) => {
+            // Ignore scanning errors (these are normal during scanning)
+            // Only log if it's not a common scanning message
+            if (!errorMessage.includes('No QR code found')) {
+              console.log('[QR Scanner] Scanning...', errorMessage)
+            }
+          }
+        )
+      } catch (startErr: any) {
+        // Handle specific camera errors
+        if (startErr.name === 'NotAllowedError' || startErr.name === 'PermissionDeniedError') {
           throw new Error('คุณปฏิเสธการเข้าถึงกล้อง\n\nกรุณาอนุญาตการเข้าถึงกล้องใน Settings ของเบราว์เซอร์')
-        } else if (permErr.name === 'NotFoundError' || permErr.name === 'DevicesNotFoundError') {
+        } else if (startErr.name === 'NotFoundError' || startErr.name === 'DevicesNotFoundError') {
           throw new Error('ไม่พบกล้องในอุปกรณ์ของคุณ\n\nกรุณาตรวจสอบว่ามีกล้องเชื่อมต่ออยู่')
+        } else if (startErr.message && startErr.message.includes('Permission')) {
+          throw new Error('คุณปฏิเสธการเข้าถึงกล้อง\n\nกรุณาอนุญาตการเข้าถึงกล้องใน Settings ของเบราว์เซอร์')
         } else {
-          throw new Error(`ไม่สามารถเข้าถึงกล้องได้: ${permErr.message}`)
+          throw startErr
         }
       }
-
-      await html5QrCode.start(
-        { facingMode: 'environment' }, // Use back camera
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0,
-        },
-        (decodedText) => {
-          handleQRCodeScanned(decodedText)
-        },
-        (errorMessage) => {
-          // Ignore scanning errors (these are normal during scanning)
-          console.log('[QR Scanner] Scanning...', errorMessage)
-        }
-      )
     } catch (err: any) {
       console.error('Failed to start camera:', err)
       setScanning(false)
@@ -252,14 +269,46 @@ export default function PatientLoginPage() {
         type: file.type,
       })
 
-      // Create a new instance for file scanning (don't reuse camera instance)
+      // Stop any existing camera scanner first
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop().catch(() => {})
+          await scannerRef.current.clear().catch(() => {})
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        scannerRef.current = null
+      }
+
+      // Create a new instance for file scanning
+      // Don't use the same element ID as camera scanner
       const html5QrCode = new Html5Qrcode('qr-reader')
       
-      // Try to scan the file
+      // Try to scan the file with better error handling
       // scanFile returns a Promise<string>
-      const result = await html5QrCode.scanFile(file, false)
-      
-      console.log('[QR Scanner] Scan successful, result:', result)
+      // Use showScanRegion: true for better compatibility
+      let result: string
+      try {
+        // Try with showScanRegion: false first (faster)
+        result = await html5QrCode.scanFile(file, false)
+        console.log('[QR Scanner] Scan successful, result:', result)
+      } catch (scanErr: any) {
+        console.log('[QR Scanner] First scan attempt failed, trying with showScanRegion: true')
+        
+        // If first attempt fails, try with showScanRegion: true
+        try {
+          result = await html5QrCode.scanFile(file, true)
+          console.log('[QR Scanner] Scan successful on second attempt, result:', result)
+        } catch (secondErr: any) {
+          // Clean up before throwing
+          try {
+            await html5QrCode.clear()
+          } catch (clearErr) {
+            // Ignore clear errors
+          }
+          throw secondErr
+        }
+      }
       
       // Clean up scanner
       try {
@@ -439,7 +488,20 @@ export default function PatientLoginPage() {
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
                   </div>
                 )}
-                <div id="qr-reader" className="w-full" style={{ minHeight: scanMode === 'camera' ? '300px' : '0' }}></div>
+                <div 
+                  id="qr-reader" 
+                  className="w-full" 
+                  style={{ 
+                    minHeight: scanMode === 'camera' ? '300px' : '0',
+                    display: scanMode === 'file' ? 'none' : 'block'
+                  }}
+                ></div>
+                {scanMode === 'file' && (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-600 mb-2">กำลังสแกน QR Code จากไฟล์...</p>
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                  </div>
+                )}
                 {scanMode === 'camera' && (
                   <p className="text-sm text-gray-600 text-center">
                     📷 นำกล้องไปชี้ที่ QR Code
