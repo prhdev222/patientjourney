@@ -461,11 +461,14 @@ export default function PatientDashboardPage() {
         {/* Visit Info */}
         {status?.visit && (
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-600">
-              <p>VN: {status.visit.vn}</p>
+            <div className="text-sm text-gray-600 space-y-1">
+              <p className="font-semibold text-gray-800 text-base">VN: {status.visit.vn}</p>
               <p>
                 เวลาเข้า:{' '}
                 {format(new Date(status.visit.startTime), 'HH:mm น.', { locale: th })}
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                📅 {format(new Date(status.visit.startTime), 'dd MMMM yyyy', { locale: th })}
               </p>
             </div>
           </div>

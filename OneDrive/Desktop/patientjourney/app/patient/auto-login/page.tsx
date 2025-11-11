@@ -46,9 +46,11 @@ function AutoLoginContent() {
         localStorage.setItem('visitId', data.visitId)
 
         console.log('[Auto Login] Login successful, redirecting to dashboard')
+        console.log('[Auto Login] Visit ID:', data.visitId)
+        console.log('[Auto Login] VN:', trimmedVn)
 
-        // Redirect to dashboard
-        router.push('/patient/dashboard')
+        // Use window.location.href for full page reload to ensure state is fresh
+        window.location.href = '/patient/dashboard'
       } catch (err: any) {
         console.error('[Auto Login] Error:', err)
         setError(err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ')
