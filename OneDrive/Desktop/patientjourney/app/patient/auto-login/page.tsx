@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function PatientAutoLoginPage() {
+function AutoLoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
@@ -98,5 +98,27 @@ export default function PatientAutoLoginPage() {
   }
 
   return null
+}
+
+export default function PatientAutoLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4"></div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              กำลังโหลด...
+            </h2>
+            <p className="text-gray-600">
+              กรุณารอสักครู่
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <AutoLoginContent />
+    </Suspense>
+  )
 }
 
