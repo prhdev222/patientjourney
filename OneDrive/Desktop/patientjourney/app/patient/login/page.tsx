@@ -177,7 +177,6 @@ export default function PatientLoginPage() {
             fps: 10,
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1.0,
-            supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
           },
           (decodedText) => {
             console.log('[QR Scanner] QR Code detected:', decodedText)
@@ -273,7 +272,11 @@ export default function PatientLoginPage() {
       if (scannerRef.current) {
         try {
           await scannerRef.current.stop().catch(() => {})
-          await scannerRef.current.clear().catch(() => {})
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        try {
+          scannerRef.current.clear()
         } catch (e) {
           // Ignore cleanup errors
         }
