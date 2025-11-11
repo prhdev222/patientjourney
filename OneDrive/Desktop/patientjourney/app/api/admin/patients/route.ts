@@ -49,7 +49,24 @@ export async function POST(request: NextRequest) {
     const hnHash = await hashPassword(hn)
 
     // Generate QR code URL that will auto-login and redirect to patient dashboard
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    // Priority: NEXT_PUBLIC_APP_URL > VERCEL_URL > default Vercel domain
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL
+    
+    if (!baseUrl) {
+      // Use Vercel's automatic URL if available
+      if (process.env.VERCEL_URL) {
+        baseUrl = `https://${process.env.VERCEL_URL}`
+      } else {
+        // Default to production Vercel domain
+        baseUrl = 'https://patientjourney-two.vercel.app'
+      }
+    }
+    
+    // Ensure baseUrl has https:// protocol
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      baseUrl = `https://${baseUrl}`
+    }
+    
     const qrCodeUrl = `${baseUrl}/patient/auto-login?vn=${encodeURIComponent(vn)}&hn=${encodeURIComponent(hn)}`
     
     const qrCodeImage = (await QRCode.toDataURL(qrCodeUrl, {
