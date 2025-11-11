@@ -18,12 +18,16 @@ export async function POST(request: NextRequest) {
     return authResult.error
   }
 
-  // Staff can only add patients if they are at "ลงทะเบียน" (Registration) department
+  // Staff can only add patients if they have canAddPatients permission
   if (authResult.user.role === 'staff') {
-    const allowedDepartments = ['ลงทะเบียน', 'Registration', 'registration']
-    if (!authResult.user.department || !allowedDepartments.includes(authResult.user.department)) {
+    const staffUser = await prisma.user.findUnique({
+      where: { id: authResult.user.userId },
+      select: { canAddPatients: true },
+    })
+
+    if (!staffUser || !staffUser.canAddPatients) {
       return NextResponse.json(
-        { error: 'Only staff at "ลงทะเบียน" department can add patients' },
+        { error: 'You do not have permission to add patients' },
         { status: 403 }
       )
     }

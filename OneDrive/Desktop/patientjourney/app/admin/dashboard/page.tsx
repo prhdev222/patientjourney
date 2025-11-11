@@ -20,6 +20,7 @@ interface Staff {
   email?: string
   department: string
   isActive: boolean
+  canAddPatients?: boolean
 }
 
 interface Patient {
@@ -433,6 +434,7 @@ export default function AdminDashboardPage() {
       password: formData.get('password') as string,
       fullName: formData.get('fullName') as string || undefined,
       department: formData.get('department') as string, // This is now unit name (from dropdown)
+      canAddPatients: formData.get('canAddPatients') === 'on',
     }
 
     try {
@@ -475,6 +477,7 @@ export default function AdminDashboardPage() {
       fullName: formData.get('fullName') as string || undefined,
       department: formData.get('department') as string,
       isActive: formData.get('isActive') === 'true',
+      canAddPatients: formData.get('canAddPatients') === 'on',
     }
 
     // Only include password if provided
@@ -932,9 +935,16 @@ export default function AdminDashboardPage() {
                       <p className="text-sm text-gray-600">{s.fullName}</p>
                     )}
                     <p className="text-sm text-gray-500">แผนก: {s.department}</p>
-                    <p className={`text-xs mt-1 ${s.isActive ? 'text-green-600' : 'text-red-600'}`}>
-                      {s.isActive ? '✅ ใช้งาน' : '❌ ปิดการใช้งาน'}
-                    </p>
+                    <div className="flex gap-2 mt-1">
+                      <p className={`text-xs ${s.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                        {s.isActive ? '✅ ใช้งาน' : '❌ ปิดการใช้งาน'}
+                      </p>
+                      {s.canAddPatients && (
+                        <p className="text-xs text-blue-600">
+                          🔐 สิทธิ์เพิ่มผู้ป่วย
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -1261,6 +1271,17 @@ export default function AdminDashboardPage() {
                     ))}
                   </select>
                 </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="canAddPatients"
+                    id="canAddPatients"
+                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <label htmlFor="canAddPatients" className="ml-2 text-sm font-medium text-gray-700">
+                    สิทธิ์เพิ่มผู้ป่วย
+                  </label>
+                </div>
               </div>
               <div className="flex gap-2 mt-6">
                 <button
@@ -1352,6 +1373,18 @@ export default function AdminDashboardPage() {
                     <option value="true">✅ ใช้งาน</option>
                     <option value="false">❌ ปิดการใช้งาน</option>
                   </select>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="canAddPatients"
+                    id="editCanAddPatients"
+                    defaultChecked={editingStaff.canAddPatients || false}
+                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <label htmlFor="editCanAddPatients" className="ml-2 text-sm font-medium text-gray-700">
+                    สิทธิ์เพิ่มผู้ป่วย
+                  </label>
                 </div>
               </div>
               <div className="flex gap-2 mt-6">

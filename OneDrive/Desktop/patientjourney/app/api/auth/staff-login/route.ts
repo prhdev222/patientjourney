@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
         role: user.role,
         department: user.department,
         fullName: user.fullName,
+        canAddPatients: user.canAddPatients || false,
       },
     })
   } catch (error: any) {

@@ -45,7 +45,10 @@ export interface User {
   fullName?: string
   email?: string
   isActive: boolean
+  canAddPatients?: boolean
 }
+
+
 
 
 

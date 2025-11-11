@@ -10,6 +10,7 @@ const updateStaffSchema = z.object({
   fullName: z.string().optional(),
   department: z.string().min(1).max(100).optional(),
   isActive: z.boolean().optional(),
+  canAddPatients: z.boolean().optional(),
 })
 
 // GET: Get single staff member
@@ -33,6 +34,7 @@ export async function GET(
         email: true,
         department: true,
         isActive: true,
+        canAddPatients: true,
         createdAt: true,
         lastLogin: true,
       },
@@ -117,6 +119,10 @@ export async function PUT(
     if (data.isActive !== undefined) {
       updateData.isActive = data.isActive
     }
+    
+    if (data.canAddPatients !== undefined) {
+      updateData.canAddPatients = data.canAddPatients
+    }
 
     const updatedStaff = await prisma.user.update({
       where: { id: params.id },
@@ -128,6 +134,7 @@ export async function PUT(
         email: true,
         department: true,
         isActive: true,
+        canAddPatients: true,
         createdAt: true,
       },
     })

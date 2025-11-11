@@ -292,8 +292,34 @@ export default function StaffDashboardPage() {
     }
   }
 
-  // Check if user is at registration department
-  const isRegistrationStaff = user?.department === 'ลงทะเบียน' || user?.department === 'Registration' || user?.department === 'registration'
+  // Check if user has permission to add patients
+  const [canAddPatients, setCanAddPatients] = useState(false)
+  
+  useEffect(() => {
+    const fetchUserPermission = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        if (!token || !user?.id) return
+        
+        const response = await fetch(`/api/admin/staff/${user.id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          setCanAddPatients(data.staff?.canAddPatients || false)
+        }
+      } catch (err) {
+        console.error('Failed to fetch user permission:', err)
+      }
+    }
+    
+    if (user?.id) {
+      fetchUserPermission()
+    }
+  }, [user])
 
   const fetchSteps = async () => {
     try {
@@ -502,8 +528,8 @@ export default function StaffDashboardPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {/* Add Patient Button (only for registration staff) */}
-        {isRegistrationStaff && (
+        {/* Add Patient Button (only for staff with permission) */}
+        {canAddPatients && (
           <div className="bg-white rounded-lg shadow p-4 mb-6">
             <button
               onClick={() => setShowAddPatientModal(true)}

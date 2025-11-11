@@ -9,6 +9,7 @@ const createStaffSchema = z.object({
   password: z.string().min(6),
   fullName: z.string().optional(),
   department: z.string().min(1).max(100),
+  canAddPatients: z.boolean().optional().default(false),
 })
 
 export async function POST(request: NextRequest) {
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { username, password, fullName, department } = createStaffSchema.parse(body)
+    const { username, password, fullName, department, canAddPatients } = createStaffSchema.parse(body)
 
     // Check if username already exists
     const existingUser = await prisma.user.findUnique({
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
         department,
         fullName,
         isActive: true,
+        canAddPatients: canAddPatients || false,
       },
     })
 
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
         fullName: staff.fullName,
         email: staff.email,
         department: staff.department,
+        canAddPatients: staff.canAddPatients,
       },
     })
   } catch (error: any) {
@@ -93,6 +96,7 @@ export async function GET(request: NextRequest) {
         email: true,
         department: true,
         isActive: true,
+        canAddPatients: true,
         createdAt: true,
       },
       orderBy: {
