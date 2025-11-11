@@ -42,6 +42,8 @@ export default function PatientDashboardPage() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [fcmEnabled, setFcmEnabled] = useState(false)
   const [previousStatus, setPreviousStatus] = useState<PatientStatus | null>(null)
+  const [showQRModal, setShowQRModal] = useState(false)
+  const [qrCodeImage, setQrCodeImage] = useState<string | null>(null)
 
   useEffect(() => {
     // Check if user is logged in as patient
@@ -382,6 +384,33 @@ export default function PatientDashboardPage() {
     }
   }
 
+  const fetchQRCode = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        router.push('/patient/login')
+        return
+      }
+
+      const response = await fetch('/api/patient/qrcode', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('ไม่สามารถดึง QR code ได้')
+      }
+
+      const data = await response.json()
+      setQrCodeImage(data.qrCode)
+      setShowQRModal(true)
+    } catch (err: any) {
+      console.error('[Patient Dashboard] Error fetching QR code:', err)
+      alert('ไม่สามารถดึง QR code ได้: ' + (err.message || 'เกิดข้อผิดพลาด'))
+    }
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
@@ -461,15 +490,23 @@ export default function PatientDashboardPage() {
         {/* Visit Info */}
         {status?.visit && (
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-600 space-y-1">
-              <p className="font-semibold text-gray-800 text-base">VN: {status.visit.vn}</p>
-              <p>
-                เวลาเข้า:{' '}
-                {format(new Date(status.visit.startTime), 'HH:mm น.', { locale: th })}
-              </p>
-              <p className="text-xs text-gray-500 mt-2">
-                📅 {format(new Date(status.visit.startTime), 'dd MMMM yyyy', { locale: th })}
-              </p>
+            <div className="flex justify-between items-start">
+              <div className="text-sm text-gray-600 space-y-1 flex-1">
+                <p className="font-semibold text-gray-800 text-base">VN: {status.visit.vn}</p>
+                <p>
+                  เวลาเข้า:{' '}
+                  {format(new Date(status.visit.startTime), 'HH:mm น.', { locale: th })}
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  📅 {format(new Date(status.visit.startTime), 'dd MMMM yyyy', { locale: th })}
+                </p>
+              </div>
+              <button
+                onClick={fetchQRCode}
+                className="ml-4 bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors text-sm font-semibold flex items-center gap-2"
+              >
+                📱 ดู QR Code
+              </button>
             </div>
           </div>
         )}
@@ -713,6 +750,44 @@ export default function PatientDashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* QR Code Modal */}
+      {showQRModal && qrCodeImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4">📱 QR Code</h3>
+            <div className="flex justify-center mb-4">
+              <img src={qrCodeImage} alt="QR Code" className="max-w-full h-auto" />
+            </div>
+            <div className="text-center text-sm text-gray-600 mb-4">
+              <p>VN: {status?.visit.vn}</p>
+              <p className="text-xs mt-1">สแกน QR Code นี้เพื่อเข้าสู่ระบบอัตโนมัติ</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const link = document.createElement('a')
+                  link.href = qrCodeImage
+                  link.download = `qr-vn-${status?.visit.vn || 'patient'}.png`
+                  link.click()
+                }}
+                className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                💾 ดาวน์โหลด
+              </button>
+              <button
+                onClick={() => {
+                  setShowQRModal(false)
+                  setQrCodeImage(null)
+                }}
+                className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
