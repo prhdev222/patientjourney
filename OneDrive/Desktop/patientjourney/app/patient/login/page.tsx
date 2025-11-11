@@ -61,7 +61,31 @@ export default function PatientLoginPage() {
     console.log('[QR Scanner] First 50 chars:', decodedText.substring(0, 50))
     
     try {
-      // Try to parse as JSON
+      // Check if it's a URL (new format)
+      if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) {
+        // Extract VN and HN from URL query parameters
+        try {
+          const url = new URL(decodedText)
+          const vnParam = url.searchParams.get('vn')
+          const hnParam = url.searchParams.get('hn')
+          
+          if (vnParam && hnParam && url.pathname.includes('/patient/auto-login')) {
+            // It's a valid auto-login URL, redirect directly
+            console.log('[QR Scanner] Valid auto-login URL, redirecting...')
+            setShowQRScanner(false)
+            setScanMode(null)
+            stopScanning()
+            window.location.href = decodedText
+            return
+          } else {
+            throw new Error('URL ไม่ถูกต้อง กรุณาใช้ QR Code ที่ได้รับจากเจ้าหน้าที่')
+          }
+        } catch (urlErr: any) {
+          throw new Error('QR Code URL ไม่ถูกต้อง\n\nกรุณาใช้ QR Code ที่ได้รับจากเจ้าหน้าที่เท่านั้น')
+        }
+      }
+      
+      // Try to parse as JSON (old format for backward compatibility)
       let data
       try {
         data = JSON.parse(decodedText)
@@ -81,12 +105,7 @@ export default function PatientLoginPage() {
           data = { vn: vnMatch[1], hn: hnMatch[1] }
           console.log('[QR Scanner] Extracted data:', data)
         } else {
-          // Check if it's a URL or other format
-          if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) {
-            throw new Error('QR Code นี้เป็น URL ไม่ใช่ QR Code จากระบบ\n\nกรุณาใช้ QR Code ที่ได้รับจากเจ้าหน้าที่เท่านั้น')
-          } else {
-            throw new Error('QR Code format ไม่ถูกต้อง\n\nQR Code ต้องมีข้อมูล VN และ HN ในรูปแบบ JSON: {"vn":"...","hn":"..."}')
-          }
+          throw new Error('QR Code format ไม่ถูกต้อง\n\nQR Code ต้องเป็น URL หรือมีข้อมูล VN และ HN ในรูปแบบ JSON')
         }
       }
       
@@ -113,7 +132,7 @@ export default function PatientLoginPage() {
         scannedText: decodedText,
       })
       
-      alert('❌ QR Code ไม่ถูกต้อง\n\n' + (err.message || 'กรุณาตรวจสอบว่า QR Code มาจากระบบนี้') + '\n\nคำแนะนำ:\n- ใช้ QR Code ที่ได้รับจากเจ้าหน้าที่เท่านั้น\n- QR Code ต้องมีข้อมูล VN และ HN\n- ลองสแกนใหม่อีกครั้งหรือติดต่อเจ้าหน้าที่')
+      alert('❌ QR Code ไม่ถูกต้อง\n\n' + (err.message || 'กรุณาตรวจสอบว่า QR Code มาจากระบบนี้') + '\n\nคำแนะนำ:\n- ใช้ QR Code ที่ได้รับจากเจ้าหน้าที่เท่านั้น\n- QR Code ต้องเป็น URL หรือมีข้อมูล VN และ HN\n- ลองสแกนใหม่อีกครั้งหรือติดต่อเจ้าหน้าที่')
     }
   }
 

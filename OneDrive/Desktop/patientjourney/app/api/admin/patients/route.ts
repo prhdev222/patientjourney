@@ -48,9 +48,11 @@ export async function POST(request: NextRequest) {
     // Hash HN
     const hnHash = await hashPassword(hn)
 
-    // Generate QR code
-    const qrCodeData = JSON.stringify({ vn, hn })
-    const qrCodeImage = (await QRCode.toDataURL(qrCodeData, {
+    // Generate QR code URL that will auto-login and redirect to patient dashboard
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const qrCodeUrl = `${baseUrl}/patient/auto-login?vn=${encodeURIComponent(vn)}&hn=${encodeURIComponent(hn)}`
+    
+    const qrCodeImage = (await QRCode.toDataURL(qrCodeUrl, {
       errorCorrectionLevel: 'M',
       margin: 1,
       color: {
