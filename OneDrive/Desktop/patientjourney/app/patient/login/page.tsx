@@ -160,7 +160,7 @@ export default function PatientLoginPage() {
       if (scannerRef.current) {
         try {
           await scannerRef.current.stop().catch(() => {})
-          await scannerRef.current.clear().catch(() => {})
+          scannerRef.current.clear()
         } catch (e) {
           // Ignore cleanup errors
         }
@@ -319,7 +319,7 @@ export default function PatientLoginPage() {
           // Ignore cleanup errors
         }
         try {
-          await scannerRef.current.clear().catch(() => {})
+          scannerRef.current.clear()
         } catch (e) {
           // Ignore cleanup errors
         }
@@ -346,10 +346,12 @@ export default function PatientLoginPage() {
       try {
         // Use scanFileV2 which is more reliable
         if (html5QrCode.scanFileV2) {
-          result = await html5QrCode.scanFileV2(file, {
+          const scanResult = await html5QrCode.scanFileV2(file, {
             aspectRatio: 1.0,
             disableFlip: false,
           })
+          // scanFileV2 returns Html5QrcodeResult object, extract text
+          result = typeof scanResult === 'string' ? scanResult : scanResult.decodedText
         } else {
           // Fallback to scanFile
           result = await html5QrCode.scanFile(file, false)
@@ -402,7 +404,7 @@ export default function PatientLoginPage() {
       // Clean up scanner
       if (scannerRef.current) {
         try {
-          await scannerRef.current.clear().catch(() => {})
+          scannerRef.current.clear()
         } catch (clearErr) {
           // Ignore clear errors
         }
