@@ -344,18 +344,8 @@ export default function PatientLoginPage() {
       // Try to scan the file
       let result: string
       try {
-        // Use scanFileV2 which is more reliable
-        if (html5QrCode.scanFileV2) {
-          const scanResult = await html5QrCode.scanFileV2(file, {
-            aspectRatio: 1.0,
-            disableFlip: false,
-          })
-          // scanFileV2 returns Html5QrcodeResult object, extract text
-          result = typeof scanResult === 'string' ? scanResult : scanResult.decodedText
-        } else {
-          // Fallback to scanFile
-          result = await html5QrCode.scanFile(file, false)
-        }
+        // Try scanFile first (most compatible)
+        result = await html5QrCode.scanFile(file, false)
         console.log('[QR Scanner] Scan successful, result:', result)
       } catch (scanErr: any) {
         console.log('[QR Scanner] First scan attempt failed, trying alternative method')
