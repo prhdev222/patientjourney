@@ -146,7 +146,8 @@ export default function PatientLoginPage() {
       // Check if HTTPS or localhost (required for camera access)
       const isSecure = window.location.protocol === 'https:' || 
                       window.location.hostname === 'localhost' || 
-                      window.location.hostname === '127.0.0.1'
+                      window.location.hostname === '127.0.0.1' ||
+                      window.location.hostname.endsWith('.vercel.app')
       
       if (!isSecure) {
         throw new Error('การเข้าถึงกล้องต้องใช้ HTTPS หรือ localhost\n\nกรุณาใช้ URL ที่ปลอดภัย (https://) หรือ localhost')
@@ -158,25 +159,65 @@ export default function PatientLoginPage() {
       // Clear any existing scanner
       if (scannerRef.current) {
         try {
-          await scannerRef.current.stop()
-          await scannerRef.current.clear()
+          await scannerRef.current.stop().catch(() => {})
+          await scannerRef.current.clear().catch(() => {})
         } catch (e) {
           // Ignore cleanup errors
         }
         scannerRef.current = null
       }
 
+      // Request camera permission first
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } 
+        })
+        // Stop the test stream immediately
+        stream.getTracks().forEach(track => track.stop())
+      } catch (permErr: any) {
+        if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+          throw new Error('คุณปฏิเสธการเข้าถึงกล้อง\n\nกรุณาอนุญาตการเข้าถึงกล้องใน Settings ของเบราว์เซอร์')
+        } else if (permErr.name === 'NotFoundError' || permErr.name === 'DevicesNotFoundError') {
+          throw new Error('ไม่พบกล้องในอุปกรณ์ของคุณ\n\nกรุณาตรวจสอบว่ามีกล้องเชื่อมต่ออยู่')
+        }
+        throw permErr
+      }
+
+      // Get available cameras
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const videoDevices = devices.filter(device => device.kind === 'videoinput')
+      
+      if (videoDevices.length === 0) {
+        throw new Error('ไม่พบกล้องในอุปกรณ์ของคุณ')
+      }
+
+      // Try to find back camera first, otherwise use first available
+      let cameraId: string | { facingMode: 'environment' } = { facingMode: 'environment' }
+      const backCamera = videoDevices.find(device => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('rear') ||
+        device.label.toLowerCase().includes('environment')
+      )
+      
+      if (backCamera) {
+        cameraId = backCamera.deviceId
+      } else if (videoDevices.length > 0) {
+        // Use first camera if no back camera found
+        cameraId = videoDevices[0].deviceId
+      }
+
       const html5QrCode = new Html5Qrcode('qr-reader')
       scannerRef.current = html5QrCode
 
-      // Try to start camera - html5Qrcode will handle permission request
+      // Try to start camera
       try {
         await html5QrCode.start(
-          { facingMode: 'environment' }, // Use back camera
+          cameraId,
           {
             fps: 10,
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1.0,
+            disableFlip: false,
           },
           (decodedText) => {
             console.log('[QR Scanner] QR Code detected:', decodedText)
@@ -185,7 +226,9 @@ export default function PatientLoginPage() {
           (errorMessage) => {
             // Ignore scanning errors (these are normal during scanning)
             // Only log if it's not a common scanning message
-            if (!errorMessage.includes('No QR code found')) {
+            if (!errorMessage.includes('No QR code found') && 
+                !errorMessage.includes('NotFoundException') &&
+                !errorMessage.includes('QR code parse error')) {
               console.log('[QR Scanner] Scanning...', errorMessage)
             }
           }
@@ -276,7 +319,7 @@ export default function PatientLoginPage() {
           // Ignore cleanup errors
         }
         try {
-          scannerRef.current.clear()
+          await scannerRef.current.clear().catch(() => {})
         } catch (e) {
           // Ignore cleanup errors
         }
@@ -284,19 +327,36 @@ export default function PatientLoginPage() {
       }
 
       // Create a new instance for file scanning
-      // Don't use the same element ID as camera scanner
-      const html5QrCode = new Html5Qrcode('qr-reader')
+      // Use a different element ID for file scanning to avoid conflicts
+      const fileReaderId = 'qr-file-reader'
       
-      // Try to scan the file with better error handling
-      // scanFile returns a Promise<string>
-      // Use showScanRegion: true for better compatibility
+      // Create a temporary div for file scanning if it doesn't exist
+      let fileReaderElement = document.getElementById(fileReaderId)
+      if (!fileReaderElement) {
+        fileReaderElement = document.createElement('div')
+        fileReaderElement.id = fileReaderId
+        fileReaderElement.style.display = 'none'
+        document.body.appendChild(fileReaderElement)
+      }
+
+      const html5QrCode = new Html5Qrcode(fileReaderId)
+      
+      // Try to scan the file
       let result: string
       try {
-        // Try with showScanRegion: false first (faster)
-        result = await html5QrCode.scanFile(file, false)
+        // Use scanFileV2 which is more reliable
+        if (html5QrCode.scanFileV2) {
+          result = await html5QrCode.scanFileV2(file, {
+            aspectRatio: 1.0,
+            disableFlip: false,
+          })
+        } else {
+          // Fallback to scanFile
+          result = await html5QrCode.scanFile(file, false)
+        }
         console.log('[QR Scanner] Scan successful, result:', result)
       } catch (scanErr: any) {
-        console.log('[QR Scanner] First scan attempt failed, trying with showScanRegion: true')
+        console.log('[QR Scanner] First scan attempt failed, trying alternative method')
         
         // If first attempt fails, try with showScanRegion: true
         try {
@@ -320,6 +380,11 @@ export default function PatientLoginPage() {
         // Ignore clear errors
       }
       
+      // Remove temporary element
+      if (fileReaderElement && fileReaderElement.parentNode) {
+        fileReaderElement.parentNode.removeChild(fileReaderElement)
+      }
+      
       scannerRef.current = null
       setScanning(false)
       setScanMode(null)
@@ -337,11 +402,17 @@ export default function PatientLoginPage() {
       // Clean up scanner
       if (scannerRef.current) {
         try {
-          await scannerRef.current.clear()
+          await scannerRef.current.clear().catch(() => {})
         } catch (clearErr) {
           // Ignore clear errors
         }
         scannerRef.current = null
+      }
+      
+      // Remove temporary element
+      const fileReaderElement = document.getElementById('qr-file-reader')
+      if (fileReaderElement && fileReaderElement.parentNode) {
+        fileReaderElement.parentNode.removeChild(fileReaderElement)
       }
       
       setScanning(false)
@@ -351,7 +422,9 @@ export default function PatientLoginPage() {
       let errorMessage = 'ไม่สามารถสแกน QR Code จากไฟล์ได้'
       
       if (err.message) {
-        if (err.message.includes('No QR code found') || err.message.includes('QR code parse error')) {
+        if (err.message.includes('No QR code found') || 
+            err.message.includes('QR code parse error') ||
+            err.message.includes('NotFoundException')) {
           errorMessage = 'ไม่พบ QR Code ในไฟล์นี้\n\nกรุณาตรวจสอบว่า:\n- ไฟล์มี QR Code ที่ชัดเจน\n- QR Code ไม่เบลอหรือเสียหาย\n- ไฟล์เป็นรูปภาพ PNG, JPG หรือ JPEG'
         } else if (err.message.includes('file') || err.message.includes('read')) {
           errorMessage = 'ไม่สามารถอ่านไฟล์ได้\n\nกรุณาตรวจสอบว่าไฟล์ไม่เสียหาย'
