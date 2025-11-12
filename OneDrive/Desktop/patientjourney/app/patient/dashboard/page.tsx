@@ -231,13 +231,20 @@ export default function PatientDashboardPage() {
       console.log('[FCM] Requesting FCM token...')
       let token: string
       try {
-        token = await requestNotificationPermission()
+        // Pass service worker registration to getToken
+        token = await requestNotificationPermission(registration)
         if (!token) {
           throw new Error('ไม่สามารถรับ FCM token ได้')
         }
         console.log('[FCM] FCM token received:', token.substring(0, 20) + '...')
       } catch (tokenError: any) {
         console.error('[FCM] Failed to get FCM token:', tokenError)
+        console.error('[FCM] Error details:', {
+          name: tokenError.name,
+          message: tokenError.message,
+          code: tokenError.code,
+          stack: tokenError.stack,
+        })
         alert(tokenError.message || 'ไม่สามารถรับ FCM token ได้ กรุณาตรวจสอบ Firebase configuration')
         return false
       }
