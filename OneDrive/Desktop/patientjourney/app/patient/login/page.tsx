@@ -470,7 +470,8 @@ export default function PatientLoginPage() {
             </label>
             <input
               id="hn"
-              type="password"
+              type="text"
+              inputMode="numeric"
               value={hn}
               onChange={(e) => setHn(e.target.value)}
               required
