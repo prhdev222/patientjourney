@@ -229,7 +229,7 @@ export default function PatientDashboardPage() {
 
       // Request FCM token
       console.log('[FCM] Requesting FCM token...')
-      let token: string
+      let token: string | null
       try {
         // Pass service worker registration to getToken
         token = await requestNotificationPermission(registration)
