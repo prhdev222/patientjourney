@@ -500,15 +500,6 @@ export default function PatientLoginPage() {
           </Link>
         </div>
 
-        <div className="mt-4 text-center">
-          <button
-            type="button"
-            onClick={() => setShowQRScanner(true)}
-            className="text-sm text-primary-600 hover:text-primary-700 underline"
-          >
-            หรือสแกน QR Code ที่ได้รับจากเจ้าหน้าที่
-          </button>
-        </div>
       </div>
 
       {/* QR Scanner Modal */}
