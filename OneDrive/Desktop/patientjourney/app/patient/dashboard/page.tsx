@@ -180,6 +180,14 @@ export default function PatientDashboardPage() {
         return false
       }
 
+      // Check if HTTPS (required for service worker and notifications)
+      if (window.location.protocol !== 'https:' && 
+          window.location.hostname !== 'localhost' && 
+          !window.location.hostname.endsWith('.vercel.app')) {
+        alert('Web Push Notification ต้องใช้ HTTPS\n\nกรุณาใช้ URL ที่ปลอดภัย (https://) หรือ localhost')
+        return false
+      }
+
       // Register service worker for FCM
       console.log('[FCM] Registering service worker...')
       let registration
@@ -221,13 +229,18 @@ export default function PatientDashboardPage() {
 
       // Request FCM token
       console.log('[FCM] Requesting FCM token...')
-      const token = await requestNotificationPermission()
-      if (!token) {
-        console.error('[FCM] Failed to get FCM token')
-        alert('ไม่สามารถรับ FCM token ได้ กรุณาตรวจสอบ Firebase configuration')
+      let token: string
+      try {
+        token = await requestNotificationPermission()
+        if (!token) {
+          throw new Error('ไม่สามารถรับ FCM token ได้')
+        }
+        console.log('[FCM] FCM token received:', token.substring(0, 20) + '...')
+      } catch (tokenError: any) {
+        console.error('[FCM] Failed to get FCM token:', tokenError)
+        alert(tokenError.message || 'ไม่สามารถรับ FCM token ได้ กรุณาตรวจสอบ Firebase configuration')
         return false
       }
-      console.log('[FCM] FCM token received:', token.substring(0, 20) + '...')
 
       // Send token to backend
       const authToken = localStorage.getItem('token')

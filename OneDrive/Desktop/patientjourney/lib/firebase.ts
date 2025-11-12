@@ -12,18 +12,37 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
+// Check if Firebase config is complete
+const isFirebaseConfigValid = () => {
+  return !!(
+    firebaseConfig.apiKey &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId &&
+    firebaseConfig.messagingSenderId &&
+    firebaseConfig.appId
+  )
+}
+
 // Initialize Firebase
-let app: FirebaseApp
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig)
+let app: FirebaseApp | null = null
+if (isFirebaseConfigValid()) {
+  if (getApps().length === 0) {
+    try {
+      app = initializeApp(firebaseConfig)
+    } catch (error) {
+      console.error('Firebase initialization error:', error)
+    }
+  } else {
+    app = getApps()[0]
+  }
 } else {
-  app = getApps()[0]
+  console.warn('Firebase configuration is incomplete. Some Firebase features may not work.')
 }
 
 // Get messaging instance (only on client side)
 let messaging: Messaging | null = null
 
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator && app) {
   try {
     messaging = getMessaging(app)
   } catch (error) {
@@ -33,29 +52,53 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
 
 // Request notification permission and get token
 export async function requestNotificationPermission(): Promise<string | null> {
+  // Check if Firebase config is valid
+  if (!isFirebaseConfigValid()) {
+    throw new Error('Firebase configuration ไม่ครบถ้วน - กรุณาตรวจสอบ environment variables (NEXT_PUBLIC_FIREBASE_*)')
+  }
+
+  if (!app) {
+    throw new Error('Firebase app ไม่ได้ initialize - กรุณาตรวจสอบ Firebase configuration')
+  }
+
   if (!messaging) {
     console.warn('Firebase messaging not available')
-    return null
+    throw new Error('Firebase messaging ไม่พร้อมใช้งาน - กรุณาตรวจสอบว่าเบราว์เซอร์รองรับ Service Worker และ Firebase configuration ถูกต้อง')
   }
 
   try {
+    // Check if service worker is registered
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready.catch(() => null)
+      if (!registration) {
+        throw new Error('Service Worker ยังไม่พร้อม - กรุณารอสักครู่แล้วลองใหม่')
+      }
+    }
+
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') {
       console.warn('Notification permission denied')
-      return null
+      throw new Error('คุณปฏิเสธการแจ้งเตือน - กรุณาอนุญาตการแจ้งเตือนในเบราว์เซอร์')
     }
 
     const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
     if (!vapidKey) {
       console.error('VAPID key not found')
-      return null
+      throw new Error('VAPID key ไม่พบ - กรุณาตรวจสอบ Firebase configuration ใน environment variables')
     }
 
     const token = await getToken(messaging, { vapidKey })
+    if (!token) {
+      throw new Error('ไม่สามารถรับ FCM token ได้ - กรุณาตรวจสอบ Firebase configuration และ Service Worker')
+    }
     return token
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error getting FCM token:', error)
-    return null
+    // Re-throw with better error message
+    if (error.message) {
+      throw error
+    }
+    throw new Error(`เกิดข้อผิดพลาดในการรับ FCM token: ${error.message || 'Unknown error'}`)
   }
 }
 
