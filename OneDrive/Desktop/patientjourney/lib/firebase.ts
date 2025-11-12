@@ -14,13 +14,28 @@ const firebaseConfig = {
 
 // Check if Firebase config is complete
 const isFirebaseConfigValid = () => {
-  return !!(
+  const isValid = !!(
     firebaseConfig.apiKey &&
     firebaseConfig.authDomain &&
     firebaseConfig.projectId &&
     firebaseConfig.messagingSenderId &&
     firebaseConfig.appId
   )
+  
+  // Debug logging (only in development or when config is invalid)
+  if (!isValid && typeof window !== 'undefined') {
+    console.warn('[Firebase Config] Missing variables:', {
+      apiKey: !!firebaseConfig.apiKey,
+      authDomain: !!firebaseConfig.authDomain,
+      projectId: !!firebaseConfig.projectId,
+      messagingSenderId: !!firebaseConfig.messagingSenderId,
+      appId: !!firebaseConfig.appId,
+      storageBucket: !!firebaseConfig.storageBucket,
+      vapidKey: !!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+    })
+  }
+  
+  return isValid
 }
 
 // Initialize Firebase
@@ -54,7 +69,16 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator && app) {
 export async function requestNotificationPermission(serviceWorkerRegistration?: ServiceWorkerRegistration): Promise<string | null> {
   // Check if Firebase config is valid
   if (!isFirebaseConfigValid()) {
-    throw new Error('Firebase configuration ไม่ครบถ้วน - กรุณาตรวจสอบ environment variables (NEXT_PUBLIC_FIREBASE_*)')
+    const missing = []
+    if (!firebaseConfig.apiKey) missing.push('NEXT_PUBLIC_FIREBASE_API_KEY')
+    if (!firebaseConfig.authDomain) missing.push('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN')
+    if (!firebaseConfig.projectId) missing.push('NEXT_PUBLIC_FIREBASE_PROJECT_ID')
+    if (!firebaseConfig.messagingSenderId) missing.push('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID')
+    if (!firebaseConfig.appId) missing.push('NEXT_PUBLIC_FIREBASE_APP_ID')
+    
+    const errorMsg = `Firebase configuration ไม่ครบถ้วน - กรุณาตรวจสอบ environment variables:\n${missing.join('\n')}\n\nหมายเหตุ: หลังจากตั้งค่า environment variables ใน Vercel แล้ว ต้อง redeploy project`
+    console.error('[Firebase Config Error]', errorMsg)
+    throw new Error(errorMsg)
   }
 
   if (!app) {
