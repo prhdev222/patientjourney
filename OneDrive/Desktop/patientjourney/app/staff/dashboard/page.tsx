@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { Html5Qrcode } from 'html5-qrcode'
 
 interface Patient {
   vn: string
@@ -69,6 +70,13 @@ export default function StaffDashboardPage() {
   const [selectedStepId, setSelectedStepId] = useState<string>('')
   const [transferStepId, setTransferStepId] = useState('')
   const [noteText, setNoteText] = useState('')
+  
+  // QR Scanner states
+  const [showQRScanner, setShowQRScanner] = useState(false)
+  const [scanMode, setScanMode] = useState<'camera' | 'file' | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const scannerRef = useRef<Html5Qrcode | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const userStr = localStorage.getItem('user')
@@ -539,6 +547,16 @@ export default function StaffDashboardPage() {
             </button>
           </div>
         )}
+
+        {/* Scan QR Code Button */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <button
+            onClick={() => setShowQRScanner(true)}
+            className="w-full bg-purple-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center justify-center gap-2"
+          >
+            📷 สแกน QR Code เพื่อจัดการผู้ป่วย
+          </button>
+        </div>
 
         {/* Search and Actions */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -1029,6 +1047,90 @@ export default function StaffDashboardPage() {
                 ย้อนกลับสถานะ
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Scanner Modal */}
+      {showQRScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">📱 สแกน QR Code เพื่อจัดการผู้ป่วย</h3>
+            
+            {!scanMode ? (
+              <div className="space-y-4">
+                <button
+                  onClick={startCameraScan}
+                  className="w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-colors"
+                >
+                  📷 สแกนจากกล้อง
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors"
+                >
+                  📁 เลือกไฟล์รูปภาพ
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => {
+                    setShowQRScanner(false)
+                    stopScanning()
+                  }}
+                  className="w-full bg-gray-200 text-gray-800 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {scanMode === 'file' && scanning && (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-600 mb-2">กำลังสแกน QR Code จากไฟล์...</p>
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                  </div>
+                )}
+                <div 
+                  id="staff-qr-reader" 
+                  className="w-full" 
+                  style={{ 
+                    minHeight: scanMode === 'camera' ? '300px' : '0',
+                    display: scanMode === 'file' ? 'none' : 'block'
+                  }}
+                ></div>
+                {scanMode === 'file' && (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-600 mb-2">กำลังสแกน QR Code จากไฟล์...</p>
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                  </div>
+                )}
+                {scanMode === 'camera' && (
+                  <p className="text-sm text-gray-600 text-center">
+                    📷 นำกล้องไปชี้ที่ QR Code
+                  </p>
+                )}
+                {scanMode === 'file' && !scanning && (
+                  <p className="text-sm text-gray-600 text-center">
+                    📁 กรุณาเลือกไฟล์รูปภาพที่มี QR Code
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    stopScanning()
+                    setShowQRScanner(false)
+                  }}
+                  className="w-full bg-red-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-red-600 transition-colors"
+                >
+                  {scanMode === 'camera' ? 'หยุดสแกน' : 'ปิด'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
