@@ -448,6 +448,427 @@ export default function StaffDashboardPage() {
     await handleUpdateStatus(selectedPatient.vn, 'in_progress', noteText)
   }
 
+  // QR Scanner functions
+  const handleQRCodeScanned = async (decodedText: string) => {
+    console.log('[Staff QR Scanner] Scanned text:', decodedText)
+    
+    try {
+      // Check if it's a URL (patient auto-login URL)
+      if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) {
+        try {
+          const url = new URL(decodedText)
+          const vnParam = url.searchParams.get('vn')
+          
+          if (vnParam && url.pathname.includes('/patient/auto-login')) {
+            console.log('[Staff QR Scanner] Found VN:', vnParam)
+            // Stop scanning
+            stopScanning()
+            setShowQRScanner(false)
+            
+            // Search for patient by VN
+            await searchPatientByVN(vnParam.trim())
+            return
+          } else {
+            throw new Error('QR Code URL ไม่ถูกต้อง')
+          }
+        } catch (urlErr: any) {
+          throw new Error('QR Code URL ไม่ถูกต้อง\n\nกรุณาใช้ QR Code ที่ได้รับจากระบบ')
+        }
+      }
+      
+      // Try to parse as JSON (old format for backward compatibility)
+      try {
+        const data = JSON.parse(decodedText)
+        if (data.vn) {
+          stopScanning()
+          setShowQRScanner(false)
+          await searchPatientByVN(data.vn)
+          return
+        }
+      } catch (jsonErr) {
+        // Not JSON, try to extract VN from text
+        const vnMatch = decodedText.match(/VN[:\s]*(\d+)/i)
+        if (vnMatch && vnMatch[1]) {
+          stopScanning()
+          setShowQRScanner(false)
+          await searchPatientByVN(vnMatch[1])
+          return
+        }
+      }
+      
+      throw new Error('ไม่พบข้อมูล VN ใน QR Code')
+    } catch (err: any) {
+      console.error('[Staff QR Scanner] Error:', err)
+      alert('❌ QR Code ไม่ถูกต้อง\n\n' + (err.message || 'กรุณาตรวจสอบว่า QR Code มาจากระบบนี้') + '\n\nคำแนะนำ:\n- ใช้ QR Code ที่ได้รับจากระบบเท่านั้น\n- QR Code ต้องเป็น URL หรือมีข้อมูล VN\n- ลองสแกนใหม่อีกครั้ง')
+    }
+  }
+
+  const searchPatientByVN = async (vn: string) => {
+    try {
+      setSearchVn(vn)
+      setSearchType('VN')
+      
+      const token = localStorage.getItem('token')
+      if (!token) {
+        router.push('/staff/login')
+        return
+      }
+
+      // Search in active patients first
+      const response = await fetch(`/api/staff/patients?vn=${encodeURIComponent(vn)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.status === 401) {
+        localStorage.removeItem('token')
+        router.push('/staff/login')
+        return
+      }
+
+      const data = await response.json()
+      const foundPatients = data.patients || []
+      
+      if (foundPatients.length > 0) {
+        // Found patient, open manage modal
+        const patient = foundPatients[0]
+        setSelectedPatient(patient)
+        setShowTransferModal(true)
+        setTransferStepId('')
+        setNoteText('')
+        alert(`✅ พบผู้ป่วย VN: ${patient.vn}\n\nกำลังเปิดหน้าจัดการผู้ป่วย...`)
+        return
+      }
+
+      // Not found in active patients, try recent patients
+      const now = new Date()
+      const eightHoursAgo = new Date(now.getTime() - 8 * 60 * 60 * 1000)
+      const params = new URLSearchParams()
+      params.append('includeCompleted', 'true')
+      params.append('dateFrom', eightHoursAgo.toISOString())
+      params.append('dateTo', now.toISOString())
+      params.append('vn', vn)
+
+      const recentResponse = await fetch(`/api/staff/patients?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (recentResponse.ok) {
+        const recentData = await recentResponse.json()
+        const recentPatientsList = recentData.patients || []
+        const recent = recentPatientsList.find((p: Patient) => p.vn === vn)
+        
+        if (recent) {
+          setSelectedPatient(recent)
+          setShowTransferModal(true)
+          setTransferStepId('')
+          setNoteText('')
+          setShowRecentPatients(true)
+          setRecentPatients(recentPatientsList)
+          alert(`✅ พบผู้ป่วย VN: ${recent.vn}\n\nกำลังเปิดหน้าจัดการผู้ป่วย...`)
+          return
+        }
+      }
+
+      // Not found anywhere
+      alert(`❌ ไม่พบผู้ป่วย VN: ${vn}\n\nกรุณาตรวจสอบว่า VN ถูกต้อง`)
+    } catch (err: any) {
+      console.error('Failed to search patient:', err)
+      alert('เกิดข้อผิดพลาดในการค้นหาผู้ป่วย')
+    }
+  }
+
+  const startCameraScan = async () => {
+    try {
+      // Check if camera is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('เบราว์เซอร์ของคุณไม่รองรับการเข้าถึงกล้อง\n\nกรุณาใช้เบราว์เซอร์ที่ทันสมัย เช่น Chrome, Firefox, Safari หรือ Edge')
+      }
+
+      // Check if HTTPS or localhost (required for camera access)
+      const isSecure = window.location.protocol === 'https:' || 
+                      window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1' ||
+                      window.location.hostname.endsWith('.vercel.app')
+      
+      if (!isSecure) {
+        throw new Error('การเข้าถึงกล้องต้องใช้ HTTPS หรือ localhost\n\nกรุณาใช้ URL ที่ปลอดภัย (https://) หรือ localhost')
+      }
+
+      setScanMode('camera')
+      setScanning(true)
+      
+      // Clear any existing scanner
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop().catch(() => {})
+          scannerRef.current.clear()
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        scannerRef.current = null
+      }
+
+      // Request camera permission first
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } 
+        })
+        // Stop the test stream immediately
+        stream.getTracks().forEach(track => track.stop())
+      } catch (permErr: any) {
+        if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+          throw new Error('คุณปฏิเสธการเข้าถึงกล้อง\n\nกรุณาอนุญาตการเข้าถึงกล้องใน Settings ของเบราว์เซอร์')
+        } else if (permErr.name === 'NotFoundError' || permErr.name === 'DevicesNotFoundError') {
+          throw new Error('ไม่พบกล้องในอุปกรณ์ของคุณ\n\nกรุณาตรวจสอบว่ามีกล้องเชื่อมต่ออยู่')
+        }
+        throw permErr
+      }
+
+      // Get available cameras
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const videoDevices = devices.filter(device => device.kind === 'videoinput')
+      
+      if (videoDevices.length === 0) {
+        throw new Error('ไม่พบกล้องในอุปกรณ์ของคุณ')
+      }
+
+      // Try to find back camera first, otherwise use first available
+      let cameraId: string | { facingMode: 'environment' } = { facingMode: 'environment' }
+      const backCamera = videoDevices.find(device => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('rear') ||
+        device.label.toLowerCase().includes('environment')
+      )
+      
+      if (backCamera) {
+        cameraId = backCamera.deviceId
+      } else if (videoDevices.length > 0) {
+        // Use first camera if no back camera found
+        cameraId = videoDevices[0].deviceId
+      }
+
+      const html5QrCode = new Html5Qrcode('staff-qr-reader')
+      scannerRef.current = html5QrCode
+
+      // Try to start camera
+      try {
+        await html5QrCode.start(
+          cameraId,
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            disableFlip: false,
+          },
+          (decodedText) => {
+            console.log('[Staff QR Scanner] QR Code detected:', decodedText)
+            handleQRCodeScanned(decodedText)
+          },
+          (errorMessage) => {
+            // Ignore scanning errors (these are normal during scanning)
+            if (!errorMessage.includes('No QR code found') && 
+                !errorMessage.includes('NotFoundException') &&
+                !errorMessage.includes('QR code parse error')) {
+              console.log('[Staff QR Scanner] Scanning...', errorMessage)
+            }
+          }
+        )
+      } catch (startErr: any) {
+        // Handle specific camera errors
+        if (startErr.name === 'NotAllowedError' || startErr.name === 'PermissionDeniedError') {
+          throw new Error('คุณปฏิเสธการเข้าถึงกล้อง\n\nกรุณาอนุญาตการเข้าถึงกล้องใน Settings ของเบราว์เซอร์')
+        } else if (startErr.name === 'NotFoundError' || startErr.name === 'DevicesNotFoundError') {
+          throw new Error('ไม่พบกล้องในอุปกรณ์ของคุณ\n\nกรุณาตรวจสอบว่ามีกล้องเชื่อมต่ออยู่')
+        } else if (startErr.message && startErr.message.includes('Permission')) {
+          throw new Error('คุณปฏิเสธการเข้าถึงกล้อง\n\nกรุณาอนุญาตการเข้าถึงกล้องใน Settings ของเบราว์เซอร์')
+        } else {
+          throw startErr
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to start camera:', err)
+      setScanning(false)
+      setScanMode(null)
+      
+      let errorMessage = 'ไม่สามารถเปิดกล้องได้'
+      if (err.message) {
+        errorMessage = err.message
+      } else if (err.name === 'NotAllowedError') {
+        errorMessage = 'คุณปฏิเสธการเข้าถึงกล้อง\n\nกรุณาอนุญาตการเข้าถึงกล้องใน Settings ของเบราว์เซอร์'
+      } else if (err.name === 'NotFoundError') {
+        errorMessage = 'ไม่พบกล้องในอุปกรณ์ของคุณ\n\nกรุณาตรวจสอบว่ามีกล้องเชื่อมต่ออยู่'
+      }
+      
+      alert(errorMessage + '\n\nคำแนะนำ:\n- ตรวจสอบว่าเบราว์เซอร์อนุญาตการเข้าถึงกล้อง\n- ใช้ HTTPS หรือ localhost\n- ลองใช้วิธีสแกนจากไฟล์แทน')
+    }
+  }
+
+  const stopScanning = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().then(() => {
+        scannerRef.current?.clear()
+        setScanning(false)
+        setScanMode(null)
+      }).catch(() => {
+        setScanning(false)
+        setScanMode(null)
+      })
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('กรุณาเลือกไฟล์รูปภาพเท่านั้น (PNG, JPG, JPEG)')
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      return
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('ไฟล์ใหญ่เกินไป กรุณาเลือกไฟล์ที่เล็กกว่า 10MB')
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      return
+    }
+
+    try {
+      setScanMode('file')
+      setScanning(true)
+
+      // Stop any existing camera scanner first
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop().catch(() => {})
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        try {
+          scannerRef.current.clear()
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        scannerRef.current = null
+      }
+
+      // Create a new instance for file scanning
+      const fileReaderId = 'staff-qr-file-reader'
+      
+      // Create a temporary div for file scanning if it doesn't exist
+      let fileReaderElement = document.getElementById(fileReaderId)
+      if (!fileReaderElement) {
+        fileReaderElement = document.createElement('div')
+        fileReaderElement.id = fileReaderId
+        fileReaderElement.style.display = 'none'
+        document.body.appendChild(fileReaderElement)
+      }
+
+      const html5QrCode = new Html5Qrcode(fileReaderId)
+      
+      // Try to scan the file
+      let result: string
+      try {
+        result = await html5QrCode.scanFile(file, false)
+        console.log('[Staff QR Scanner] Scan successful, result:', result)
+      } catch (scanErr: any) {
+        console.log('[Staff QR Scanner] First scan attempt failed, trying alternative method')
+        
+        // If first attempt fails, try with showScanRegion: true
+        try {
+          result = await html5QrCode.scanFile(file, true)
+          console.log('[Staff QR Scanner] Scan successful on second attempt, result:', result)
+        } catch (secondErr: any) {
+          // Clean up before throwing
+          try {
+            await html5QrCode.clear()
+          } catch (clearErr) {
+            // Ignore clear errors
+          }
+          throw secondErr
+        }
+      }
+      
+      // Clean up scanner
+      try {
+        await html5QrCode.clear()
+      } catch (clearErr) {
+        // Ignore clear errors
+      }
+      
+      // Remove temporary element
+      if (fileReaderElement && fileReaderElement.parentNode) {
+        fileReaderElement.parentNode.removeChild(fileReaderElement)
+      }
+      
+      scannerRef.current = null
+      setScanning(false)
+      setScanMode(null)
+      
+      // Handle the scanned result
+      handleQRCodeScanned(result)
+    } catch (err: any) {
+      console.error('Failed to scan file:', err)
+      
+      // Clean up scanner
+      if (scannerRef.current) {
+        try {
+          scannerRef.current.clear()
+        } catch (clearErr) {
+          // Ignore clear errors
+        }
+        scannerRef.current = null
+      }
+      
+      // Remove temporary element
+      const fileReaderElement = document.getElementById('staff-qr-file-reader')
+      if (fileReaderElement && fileReaderElement.parentNode) {
+        fileReaderElement.parentNode.removeChild(fileReaderElement)
+      }
+      
+      setScanning(false)
+      setScanMode(null)
+      
+      // Show user-friendly error message
+      let errorMessage = 'ไม่สามารถสแกน QR Code จากไฟล์ได้'
+      
+      if (err.message) {
+        if (err.message.includes('No QR code found') || 
+            err.message.includes('QR code parse error') ||
+            err.message.includes('NotFoundException')) {
+          errorMessage = 'ไม่พบ QR Code ในไฟล์นี้\n\nกรุณาตรวจสอบว่า:\n- ไฟล์มี QR Code ที่ชัดเจน\n- QR Code ไม่เบลอหรือเสียหาย\n- ไฟล์เป็นรูปภาพ PNG, JPG หรือ JPEG'
+        } else if (err.message.includes('file') || err.message.includes('read')) {
+          errorMessage = 'ไม่สามารถอ่านไฟล์ได้\n\nกรุณาตรวจสอบว่าไฟล์ไม่เสียหาย'
+        } else {
+          errorMessage = `เกิดข้อผิดพลาด: ${err.message}`
+        }
+      } else if (err.name) {
+        errorMessage = `เกิดข้อผิดพลาด: ${err.name}`
+      }
+      
+      alert(errorMessage + '\n\nคำแนะนำ:\n- ตรวจสอบว่าไฟล์เป็นรูปภาพที่มี QR Code\n- ตรวจสอบว่า QR Code ชัดเจนและไม่เบลอ\n- ลองใช้ไฟล์อื่นหรือสแกนจากกล้องแทน')
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      stopScanning()
+    }
+  }, [])
+
   const handleOpenRevertModal = (patient: Patient) => {
     setSelectedPatient(patient)
     setSelectedStepId(patient.currentStep?.id || '')
